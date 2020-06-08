@@ -18,9 +18,8 @@ using namespace std;
 int PORT_NUMBER;
 string IP_ADDRESS;
 string MODE;
+int exec_mode;
 int maxRow, maxCol;
-int rowSize, colSize;
-
 
 
 int* manual() {
@@ -47,8 +46,8 @@ int* automatic() {
     int* pair = new int[2];
     // Generate (row, col) randomly
     int row, col;
-    row = rand() % rowSize;
-    col = rand() % colSize;
+    row = rand() % maxRow;
+    col = rand() % maxCol;
 
     // Send it to the server
 
@@ -80,18 +79,17 @@ int main(int argc, char const *argv[]) {
     MODE = argv[3];
     transform(MODE.begin(), MODE.end(), MODE.begin(), ::tolower);
     // Get the mode of execution
-    /**
     if (MODE == "m" || MODE == "manual") {
-        manual();
+        exec_mode = 1;
     }
     else if (tolower(MODE[0]) == 'a') {
-        automatic();
+        exec_mode = 2;
     }
     else {
+        exec_mode = 2;
         cout << "A mode of execution was not selected; Default mode is automatic.." << endl;
-        automatic();
     }
-*/
+
     // --------------------------------------------------------------------------
     int sock = 0, valread;
     struct sockaddr_in serv_addr;
@@ -127,11 +125,18 @@ int main(int argc, char const *argv[]) {
 
     while (!stop) {
         char response[255];
-
         cout << "\n";
-        int *pair = manual();
+
+        int* pair;
+        if (exec_mode == 1) {
+            pair = manual();
+        }
+        else {
+            pair = automatic();
+        }
         int i = pair[0];
         int j = pair[1];
+
 
         int x;
         // Send (row, col) to the server
@@ -159,6 +164,7 @@ int main(int argc, char const *argv[]) {
 
         // Read whether there are still tickets available for purchase
         read(sock, &x, sizeof(int));
+        stop = x;
         cout << "The value for stop is: " << stop << endl;
     }
 

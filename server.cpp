@@ -152,6 +152,10 @@ int main(int argc, char const *argv[]) {
         exit(EXIT_FAILURE);
     }
 //-----------------------------------------------------------------------
+
+    pthread_t pthread;
+
+
     const int r = row;
     const int c = col;
 
