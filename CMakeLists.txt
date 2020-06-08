@@ -3,4 +3,4 @@ project(Lab5)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(Lab5 server.cpp client.cpp)
+add_executable(Lab5 server.cpp client.cpp server.h client.h)
