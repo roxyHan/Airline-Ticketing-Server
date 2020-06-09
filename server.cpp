@@ -11,9 +11,14 @@
 
 using namespace std;
 
+pthread_mutex_t lock;
 const int PORT = 5452;
 const int DEFAULT_ROW = 10;
 const int DEFAULT_COL = 10;
+int row = 0 , col = 0;
+bool stop;
+int server_fd, new_socket, valread;
+
 
 /**
  * Checks if all seats are taken
@@ -23,14 +28,17 @@ const int DEFAULT_COL = 10;
  * @return
  */
 bool stoppingCriteria(int* seats, int row, int col) {
+    pthread_mutex_lock(&lock);
     for (int i = 0; i < row; ++i) {
         for (int j = 0; j < col; ++j) {
             int current = *(seats + i*col + j);
             if (current == 0) {
+                pthread_mutex_unlock(&lock);
                 return false;
             }
         }
     }
+    pthread_mutex_unlock(&lock);
     return true;
 }
 
@@ -43,13 +51,16 @@ bool stoppingCriteria(int* seats, int row, int col) {
  * @return
  */
 bool isAvailable(int* seats, int col, int i, int j) {
+    pthread_mutex_lock(&lock);
     int seat = *(seats + i*col + j);
     if (seat == 0) {
         *(seats + i*col + j) = 1;
+        pthread_mutex_unlock(&lock);
         return true;
     }
     else {
         cout << "Nope! Seat taken!" << endl;
+        pthread_mutex_unlock(&lock);
         return false;
     }
 }
@@ -61,6 +72,8 @@ bool isAvailable(int* seats, int col, int i, int j) {
  * @param seats
  */
 void displayMap(const int row, const int col, int* seats) {
+    pthread_mutex_lock(&lock);
+
     cout << "\n***  ------------------- ***\n"
             "      Current Seat Map\n"
             "***  ------------------- ***\n"
@@ -87,11 +100,91 @@ void displayMap(const int row, const int col, int* seats) {
         }
         cout << "\n" << endl;
     }
+    pthread_mutex_unlock(&lock);
+
+}
+
+static void* interaction(void* s) {
+
+    const int r = row;
+    const int c = col;
+
+    // Creation of the 2D array for the seats
+    int* seats = new int[r * c];
+    cout << "Welcome to the ticket booking system!" << endl;
+    displayMap(r, c, seats);
+
+    // Send the (row, col) from the server to the client
+    int *size = new int[r * c];
+    size[0] = r;
+    size[1] = c;
+    send(new_socket, size, sizeof(size), 0);
+    stop = stoppingCriteria(seats, r, c);
+
+    while (!stop) {
+        // Initialize buffers
+        char buffer_msg[255];
+        char buffer_request[sizeof(int) * 2];
+
+        valread = read(new_socket, buffer_request, sizeof(int) * 2);
+
+        // Extract the row and col number received from the client
+        int rowReq, colReq;
+        memcpy(&rowReq, &buffer_request[0], sizeof(int));
+        memcpy(&colReq, &buffer_request[4], sizeof(int));
+
+        // Read the message for the seat request obtained from the client
+        pthread_mutex_lock(&lock);
+        read(new_socket, buffer_msg, 255);
+        for (int a = 0; a < 255; a++) {
+            if (buffer_msg[a] == '.') {
+                break;
+            } else {
+                cout << buffer_msg[a];
+            }
+        }
+        cout << endl;
+        pthread_mutex_unlock(&lock);
+
+        // -----------------------------------
+        //      Availability of the seat
+        // -----------------------------------
+
+        // successful and attach a message to be displayed as well
+
+        bool availability = isAvailable(seats, c, rowReq, colReq);
+        string request_reply =  "Seat request on row:";
+        request_reply.append(to_string(rowReq));
+        request_reply.append(", column:");
+        request_reply.append(to_string(colReq));
+        if (availability) {
+            request_reply.append(" is available. Ticket purchase was successful.!");
+        } else {
+            request_reply.append(" is not available.\nTicket purchase was denied."
+                                 "Try another seat.!");
+        }
+        // Send response to the seat request to the client
+        pthread_mutex_lock(&lock);
+        send(new_socket, request_reply.c_str(), strlen(request_reply.c_str()), 0);
+        pthread_mutex_unlock(&lock);
+        request_reply.clear();
+        displayMap(r, c, seats);
+
+        // Send 0 or 1 to the client depending on whether there are still tickets left
+        stop = stoppingCriteria(seats, r, c);
+        int x = stop;
+        cout << "Are all seats taken? " << x << endl;
+        pthread_mutex_lock(&lock);
+        send(new_socket, &x, sizeof(int), 0);
+        pthread_mutex_unlock(&lock);
+    }
+
+//    pthread_mutex_unlock(&lock);
+    return (void*) 0;
 }
 
 
 int main(int argc, char const *argv[]) {
-    int row = 0 , col = 0;
     // (row, col) from the cmd line
     if (argc == 1) {
         row = DEFAULT_ROW;
@@ -108,12 +201,10 @@ int main(int argc, char const *argv[]) {
     }
 
 // -----------------------------------------
-    int server_fd, new_socket, valread;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
     char buffer[1024] = {0};
-    string hello = "Server says Hiii!";
 
     // Creating socket file descriptor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -153,77 +244,22 @@ int main(int argc, char const *argv[]) {
     }
 //-----------------------------------------------------------------------
 
-    pthread_t pthread;
+    if (pthread_mutex_init(&lock, NULL) != 0) {
+        printf("\n mutex init has failed for lock 1\n");
+        return 1;
+    }
 
+    //interaction(0);
 
-    const int r = row;
-    const int c = col;
-
-
-    // Creation of the 2D array for the seats
-    int* seats = new int[r * c];
-    cout << "Welcome to the ticket booking system!" << endl;
-    displayMap(r, c, seats);
-
-    // Send the (row, col) from the server to the client
-    int *size = new int[r * c];
-    size[0] = r;
-    size[1] = c;
-    send(new_socket, size, sizeof(size), 0);
-    bool stop = stoppingCriteria(seats, r, c);
+    pthread_t threadClient;
+    int g = 0;
 
     while (!stop) {
-        // Initialize buffers
-        char buffer_msg[255];
-        char buffer_request[sizeof(int) * 2];
-
-        valread = read(new_socket, buffer_request, sizeof(int) * 2);
-
-        // Extract the row and col number received from the client
-        int rowReq, colReq;
-        memcpy(&rowReq, &buffer_request[0], sizeof(int));
-        memcpy(&colReq, &buffer_request[4], sizeof(int));
-
-        // Read the message for the seat request obtained from the client
-        read(new_socket, buffer_msg, 255);
-        //cout << buffer_msg << endl;
-        for (int a = 0; a < 255; a++) {
-            if (buffer_msg[a] == '.') {
-                break;
-            } else {
-                cout << buffer_msg[a];
-            }
-        }
-        cout << endl;
-
-        // -----------------------------------
-        //      Availability of the seat
-        // -----------------------------------
-
-        // successful and attach a message to be displayed as well
-
-        bool availability = isAvailable(seats, c, rowReq, colReq);
-        string request_reply =  "Seat request on row:";
-        request_reply.append(to_string(rowReq));
-        request_reply.append(", column:");
-        request_reply.append(to_string(colReq));
-        if (availability) {
-            request_reply.append(" is available. Ticket purchase was successful.!");
-        } else {
-            request_reply.append(" is not available.\nTicket purchase was denied."
-                                 "Try another seat.!");
-        }
-        // Send response to the seat request to the client
-        send(new_socket, request_reply.c_str(), strlen(request_reply.c_str()), 0);
-        request_reply.clear();
-        displayMap(r, c, seats);
-
-        // Send 0 or 1 to the client depending on whether there are still tickets left
-        stop = stoppingCriteria(seats, r, c);
-        int x = stop;
-        cout << "Are all seats taken? " << x << endl;
-        send(new_socket, &x, sizeof(int), 0);
+        pthread_create(&threadClient, NULL, interaction, (void *) (long) g);
+        pthread_join(threadClient, NULL);
     }
+
+    pthread_mutex_destroy(&lock);
 
     return 0;
 }
