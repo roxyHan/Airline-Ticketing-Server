@@ -22,18 +22,71 @@ int exec_mode;
 int maxRow, maxCol;
 
 
+
+bool inputCheck(std::string input) {
+    // Check for wrong input type
+    if (input.length() == 0 || input.length() > 7) {
+        std::cout << "Please provide a positive integer of reasonable size." << std::endl;
+        return false;
+    }
+
+
+    for (int idx = 0; idx < input.length(); ++idx) {
+        if (!isdigit(input[idx])) {
+            std::cout << "Please only provide a positive integer." << std::endl;
+            return false;
+        }
+    }
+    if (stoi(input) < 0) {
+        std::cout << "The number of tickets to be generated should not be less than 0."<< std::endl;
+        return false;
+    }
+    return true;
+}
+
+
+
 int* manual() {
     int* pair = new int[2];
     // Get (row,col) from the console
     string row_number, col_number;
     cout << "Please enter the row number: "<< endl;
     getline(cin, row_number);
+    bool inputRow = inputCheck(row_number);
+
+    // Validity check for row entry
+    while (!inputRow) {
+        cout << "Please enter the row number: "<< endl;
+        getline(cin, row_number);
+        inputRow = inputCheck(row_number);
+        if (inputRow) {
+            if (stoi(row_number) > maxRow) {
+                cout << "Please enter a row number less than: " << maxRow << endl;
+                inputRow = false;
+            }
+        }
+    }
     int row = stoi(row_number);
+
     cout << "Please enter the column number: "<< endl;
     getline(cin, col_number);
+    bool inputCol = inputCheck(col_number);
+
+    // Check column entry validity
+    while (!inputCol) {
+        cout << "Please enter the column number: "<< endl;
+        getline(cin, col_number);
+        inputCol = inputCheck(col_number);
+        if (inputCol) {
+            if (stoi(col_number) > maxCol) {
+                cout << "Please enter a column number less than: " << maxCol << endl;
+                inputCol = false;
+            }
+        }
+
+    }
     int col = stoi(col_number);
 
-    // Send it to the server
 
     // Back to main
     pair[0] = row;
@@ -49,9 +102,6 @@ int* automatic() {
     row = rand() % maxRow;
     col = rand() % maxCol;
 
-    // Send it to the server
-
-
     // Back to main
     pair[0] = row;
     pair[1] = col;
@@ -64,12 +114,12 @@ int main(int argc, char const *argv[]) {
     srand(time(NULL));
     if (argc != 4) {
         cout << "Please provide only the following in the given order:\n"
-                "the IP address,\n"
-                "the Port number,\n"
+                "the IP address, (127.0.0.1)\n"
+                "the Port number, (5452 used by the server)\n"
                 "the mode of execution:\n"
                 "\t\tuse 'manual' or 'm' for manual mode\n'"
                 "\t\tuse 'automatic' or 'a' for automatic mode"
-        << endl;
+             << endl;
         return EXIT_FAILURE;
     }
 
@@ -109,7 +159,7 @@ int main(int argc, char const *argv[]) {
     }
 
     if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nConnection Failed. Wrong parameters. Check IP and Port number \n");
+        printf("\nConnection Failed. Server needs to be started first.\n Wrong parameters. Check IP and Port number \n");
         return -1;
     }
     // ---------------------------------------------------------------------------
@@ -165,10 +215,15 @@ int main(int argc, char const *argv[]) {
         // Read whether there are still tickets available for purchase
         read(sock, &x, sizeof(int));
         stop = x;
-        cout << "The value for stop is: " << stop << endl;
+        cout << "\n*********************"<< endl;
+        if (stop == 0) {
+            cout << "Tickets are still available!" << endl;
+        }
+        else if (stop == 1) {
+            cout << "No more available tickets." << endl;
+        }
+        cout << "**********************" << endl;
     }
 
     return 0;
 }
-
-

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <string>
 #include <iostream>
+#include "pthread.h"
 
 
 using namespace std;
@@ -54,12 +55,13 @@ bool isAvailable(int* seats, int col, int i, int j) {
     pthread_mutex_lock(&lock);
     int seat = *(seats + i*col + j);
     if (seat == 0) {
+        cout << "Seat available" << endl;
         *(seats + i*col + j) = 1;
         pthread_mutex_unlock(&lock);
         return true;
     }
     else {
-        cout << "Nope! Seat taken!" << endl;
+        cout << "Sorry! Seat taken!" << endl;
         pthread_mutex_unlock(&lock);
         return false;
     }
@@ -77,7 +79,7 @@ void displayMap(const int row, const int col, int* seats) {
     cout << "\n***  ------------------- ***\n"
             "      Current Seat Map\n"
             "***  ------------------- ***\n"
-    << endl;
+         << endl;
     cout << "     ";
     for (int idx = 0; idx < col; ++idx) {
         cout << idx << " ";
@@ -153,7 +155,7 @@ static void* interaction(void* s) {
         // successful and attach a message to be displayed as well
 
         bool availability = isAvailable(seats, c, rowReq, colReq);
-        string request_reply =  "Seat request on row:";
+        string request_reply =  "Seat on row:";
         request_reply.append(to_string(rowReq));
         request_reply.append(", column:");
         request_reply.append(to_string(colReq));
@@ -173,7 +175,13 @@ static void* interaction(void* s) {
         // Send 0 or 1 to the client depending on whether there are still tickets left
         stop = stoppingCriteria(seats, r, c);
         int x = stop;
-        cout << "Are all seats taken? " << x << endl;
+        cout << "Are all seats taken? ";
+        if (x == 0) {
+            cout << "No" << endl;
+        }
+        else if (x == 1) {
+            cout << "Yes" << endl;
+        }
         pthread_mutex_lock(&lock);
         send(new_socket, &x, sizeof(int), 0);
         pthread_mutex_unlock(&lock);
@@ -184,10 +192,35 @@ static void* interaction(void* s) {
 }
 
 
+bool inputCheck(std::string input) {
+    // Check for wrong input type
+    if (input.length() == 0 || input.length() > 7) {
+        std::cout << "Please provide a positive integer of reasonable size." << std::endl;
+        return false;
+    }
+
+
+    for (int idx = 0; idx < input.length(); ++idx) {
+        if (!isdigit(input[idx])) {
+            std::cout << "Please only provide a positive integer." << std::endl;
+            return false;
+        }
+    }
+    if (stoi(input) == 0) {
+        std::cout << "The number of elements to be generated should be greater than 0."<< std::endl;
+        return false;
+    }
+    return true;
+}
+
+
 int main(int argc, char const *argv[]) {
     // (row, col) from the cmd line
     if (argc == 1) {
         row = DEFAULT_ROW;
+        col = DEFAULT_COL;
+    }
+    else if (argc == 2) {
         col = DEFAULT_COL;
     }
     else if (argc != 3) {
@@ -196,6 +229,12 @@ int main(int argc, char const *argv[]) {
         return EXIT_FAILURE;
     }
     else{
+        bool row_valid = inputCheck(argv[1]);
+        bool col_valid = inputCheck(argv[2]);
+        if (!(row_valid && col_valid)) {
+            cout << "Row and/or Column are not valid." << endl;
+            return EXIT_FAILURE;
+        }
         row = stoi(argv[1]);
         col = stoi(argv[2]);
     }
@@ -216,15 +255,13 @@ int main(int argc, char const *argv[]) {
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
                    &opt, sizeof(int))) {
         perror("setsockopt");
-        cout << "Trying to use port 8080!Error" << endl;
+        cout << "Trying to use a wrong port !Error" << endl;
         return EXIT_FAILURE;
-        exit(EXIT_FAILURE);
     }
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    // Forcefully attaching socket to the port 8080
     // Bind
     if (bind(server_fd, (struct sockaddr *) &address,
              sizeof(address)) < 0) {
