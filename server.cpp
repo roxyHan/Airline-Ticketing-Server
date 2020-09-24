@@ -52,19 +52,22 @@ bool stoppingCriteria(int* seats, int row, int col) {
  * @return
  */
 bool isAvailable(int* seats, int col, int i, int j) {
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
+    bool flag = true;
     int seat = *(seats + i*col + j);
     if (seat == 0) {
         cout << "Seat available" << endl;
         *(seats + i*col + j) = 1;
-        pthread_mutex_unlock(&lock);
-        return true;
+        //pthread_mutex_unlock(&lock);
+        //return true;
     }
     else {
         cout << "Sorry! Seat taken!" << endl;
-        pthread_mutex_unlock(&lock);
-        return false;
+        //pthread_mutex_unlock(&lock);
+        flag = false;
     }
+    return flag;
+    pthread_mutex_unlock(&lock);
 }
 
 /**
@@ -102,6 +105,7 @@ void displayMap(const int row, const int col, int* seats) {
         }
         cout << "\n" << endl;
     }
+    sleep(1);
     pthread_mutex_unlock(&lock);
 
 }
@@ -153,8 +157,9 @@ static void* interaction(void* s) {
         // -----------------------------------
 
         // successful and attach a message to be displayed as well
-
+        pthread_mutex_lock(&lock);
         bool availability = isAvailable(seats, c, rowReq, colReq);
+
         string request_reply =  "Seat on row:";
         request_reply.append(to_string(rowReq));
         request_reply.append(", column:");
@@ -165,8 +170,8 @@ static void* interaction(void* s) {
             request_reply.append(" is not available.\nTicket purchase was denied."
                                  "Try another seat.!");
         }
+
         // Send response to the seat request to the client
-        pthread_mutex_lock(&lock);
         send(new_socket, request_reply.c_str(), strlen(request_reply.c_str()), 0);
         pthread_mutex_unlock(&lock);
         request_reply.clear();

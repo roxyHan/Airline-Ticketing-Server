@@ -105,7 +105,7 @@ int* automatic() {
     // Back to main
     pair[0] = row;
     pair[1] = col;
-    sleep(2);
+    //sleep(2);
     return pair;
 }
 
