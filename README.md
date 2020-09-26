@@ -20,13 +20,13 @@ Sends the request for that ticket purchase to the server and waits for response 
 1. Open two Linux terminals
 2. Compile the server in one terminal <br />
 g++ -pthread -o server server.cpp
-3. Compile the client in the other terminal
+3. Compile the client in the other terminal <br/>
 g++ client.cpp -o client
 
 ## Run 
 Server: You can choose to specify the row * columns. If no size is provided, the default seat map is 10 * 10 <br />
 ##### ./server 2 3
-<br /> or <br />
+or
 ##### ./server 
 
 Client: Add the IP address followed by the port number and the mode of operation
